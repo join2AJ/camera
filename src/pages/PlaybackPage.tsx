@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Scene } from '../components/common';
+import { CameraVideo } from '../components/CameraVideo';
+import { useApp } from '../context/AppContext';
 
 const pad = (n: number) => (n < 10 ? '0' : '') + n;
 function pctToTc(pct: number): string {
@@ -30,6 +31,7 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 const MSHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export function PlaybackPage() {
+  const { cameras } = useApp();
   const [head, setHead] = useState((14.53 / 24) * 100);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
@@ -115,7 +117,7 @@ export function PlaybackPage() {
       <div className="pb-wrap">
         <div className="pb-main">
           <div className="pb-player">
-            <Scene index={0} />
+            {cameras[0] && <CameraVideo camera={cameras[0]} index={0} />}
             <div className="scanline" />
             <div className="cam-top">
               <div className="cam-name">West Entrance <span className="id">CAM-01 · 4K</span></div>
