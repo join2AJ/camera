@@ -6,11 +6,14 @@ import { Scene } from './common';
 const FILL: CSSProperties = { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', background: '#05080c' };
 
 /**
- * Route an HTTP camera URL through the Netlify proxy when the app itself is
- * served over HTTPS — browsers block mixed (HTTP-in-HTTPS) content otherwise.
+ * Route a camera URL through the Netlify proxy when needed:
+ * - `force` (camera.proxied): the camera host isn't reachable from the client
+ *   directly (geo/network blocked) so it must be fetched server-side.
+ * - HTTP URL on an HTTPS page: browsers block mixed content otherwise.
  */
-function resolveUrl(url: string): string {
-  if (typeof window !== 'undefined' && window.location.protocol === 'https:' && url.startsWith('http:')) {
+function resolveUrl(url: string, force = false): string {
+  const https = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  if (force || (https && url.startsWith('http:'))) {
     return `/camproxy?url=${encodeURIComponent(url)}`;
   }
   return url;
@@ -27,8 +30,9 @@ function resolveUrl(url: string): string {
  */
 export function CameraVideo({ camera, index, style, muted = true }: { camera: Camera; index: number; style?: CSSProperties; muted?: boolean }) {
   if (!camera.streamUrl) return <Scene index={index} style={style} />;
-  if (camera.streamType === 'mjpeg') return <ImageStream url={resolveUrl(camera.streamUrl)} style={style} />;
-  if (camera.streamType === 'snapshot') return <ImageStream url={resolveUrl(camera.streamUrl)} refreshMs={camera.refreshMs ?? 1000} style={style} />;
+  const force = !!camera.proxied;
+  if (camera.streamType === 'mjpeg') return <ImageStream url={resolveUrl(camera.streamUrl, force)} style={style} />;
+  if (camera.streamType === 'snapshot') return <ImageStream url={resolveUrl(camera.streamUrl, force)} refreshMs={camera.refreshMs ?? 1000} style={style} />;
   return <VideoStream camera={camera} style={style} muted={muted} />;
 }
 
@@ -77,7 +81,7 @@ function VideoStream({ camera, style, muted }: { camera: Camera; style?: CSSProp
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !camera.streamUrl) return;
-    const url = resolveUrl(camera.streamUrl);
+    const url = resolveUrl(camera.streamUrl, !!camera.proxied);
 
     if (camera.streamType === 'webrtc') {
       return attachWhep(video, url);

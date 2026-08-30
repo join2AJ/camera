@@ -13,7 +13,7 @@
  * default; edit DEFAULT_ALLOW below for your own devices.
  */
 
-const DEFAULT_ALLOW = ['80.32.125.254'];
+const DEFAULT_ALLOW = ['80.32.125.254', 'webcams.nyctmc.org'];
 
 function allowedHosts() {
   const env = (process.env.CAM_PROXY_ALLOW || '').split(',').map((s) => s.trim()).filter(Boolean);
