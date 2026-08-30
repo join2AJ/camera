@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Camera } from '../data/cameras';
 import { Chip, Scene, TimeStamp, ViewHead } from '../components/common';
 import { CameraVideo } from '../components/CameraVideo';
@@ -35,6 +35,18 @@ export function LivePage() {
   const [selected, setSelected] = useState(0);
   const [wall, setWall] = useState([0, 1, 2, 3]);
   const [wizard, setWizard] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width:720px)');
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
+  // On phones, show every camera in one scrollable column; on desktop, a 2×2 wall.
+  const shown = isMobile ? cameras.map((_, i) => i) : wall;
 
   const select = (ci: number) => {
     setSelected(ci);
@@ -46,7 +58,7 @@ export function LivePage() {
       {wizard && <AddCameraWizard onClose={() => setWizard(false)} />}
       <ViewHead
         title="Live Wall"
-        subtitle={`North Campus · 4 of ${cameras.length} cameras · analytics running on-device`}
+        subtitle={`North Campus · ${shown.length} of ${cameras.length} cameras · analytics running on-device`}
         actions={
           <>
             <button className="btn" onClick={() => setWizard(true)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 5v14M5 12h14" /></svg>Add camera</button>
@@ -58,7 +70,7 @@ export function LivePage() {
 
       <div className="live-grid">
         <div className="wall">
-          {wall.map((ci, slot) => {
+          {shown.map((ci, slot) => {
             const cam = cameras[ci];
             if (!cam) return null;
             const isSel = ci === selected;

@@ -32,17 +32,42 @@ export function CameraVideo({ camera, index, style, muted = true }: { camera: Ca
   return <VideoStream camera={camera} style={style} muted={muted} />;
 }
 
-/** MJPEG (single src) or polled snapshot (cache-busted src on an interval). */
+/**
+ * MJPEG (single multipart src) or polled snapshot.
+ *
+ * For snapshots we preload each frame in a detached Image and only swap it into
+ * the DOM once it has fully decoded, then wait `refreshMs` before fetching the
+ * next. This never cancels an in-flight download, so it degrades gracefully on
+ * slow links (fewer fps) instead of showing a permanently blank tile.
+ */
 function ImageStream({ url, refreshMs, style }: { url: string; refreshMs?: number; style?: CSSProperties }) {
-  const [src, setSrc] = useState(url);
+  const [src, setSrc] = useState<string | undefined>(refreshMs ? undefined : url);
+
   useEffect(() => {
     if (!refreshMs) { setSrc(url); return; }
+    let stopped = false;
+    let timer = 0;
     const sep = url.includes('?') ? '&' : '?';
-    const tick = () => setSrc(`${url}${sep}_t=${Date.now()}`);
-    tick();
-    const iv = window.setInterval(tick, refreshMs);
-    return () => window.clearInterval(iv);
+
+    const loadNext = () => {
+      if (stopped) return;
+      const next = `${url}${sep}_t=${Date.now()}`;
+      const img = new Image();
+      img.onload = () => {
+        if (stopped) return;
+        setSrc(next);
+        timer = window.setTimeout(loadNext, refreshMs);
+      };
+      img.onerror = () => {
+        if (stopped) return;
+        timer = window.setTimeout(loadNext, Math.max(refreshMs, 3000));
+      };
+      img.src = next;
+    };
+    loadNext();
+    return () => { stopped = true; window.clearTimeout(timer); };
   }, [url, refreshMs]);
+
   return <img src={src} alt="camera" style={{ ...FILL, ...style }} />;
 }
 
