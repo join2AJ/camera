@@ -1,9 +1,14 @@
+export type StreamType = 'hls' | 'webrtc';
+
 export interface Camera {
   n: string;
   id: string;
   loc: string;
   people: number;
   face: boolean;
+  /** Optional live stream. When absent, the UI shows a gradient placeholder. */
+  streamType?: StreamType;
+  streamUrl?: string;
 }
 
 /** Demo camera fleet. In a real deployment this comes from the NVR / discovery service. */

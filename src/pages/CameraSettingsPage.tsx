@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import { CAMERAS, sceneStyle } from '../data/cameras';
+import { sceneStyle } from '../data/cameras';
 import { Seg, TimeStamp, Toggle } from '../components/common';
+import { useApp } from '../context/AppContext';
 
 type CTab = 'image' | 'stream' | 'network' | 'rec';
 interface Img { brightness: number; contrast: number; saturate: number; sharp: number; focus: number; hue: number; }
@@ -24,18 +25,19 @@ const SLIDERS: { key: keyof Img; label: string; min: number; max: number }[] = [
 ];
 
 export function CameraSettingsPage() {
+  const { cameras } = useApp();
   const [tab, setTab] = useState<CTab>('image');
   const [ci, setCi] = useState(0);
   const [img, setImg] = useState<Img>(DEFAULTS);
-  const [name, setName] = useState(CAMERAS[0].n);
-  const cam = CAMERAS[ci];
+  const [name, setName] = useState(cameras[0]?.n ?? '');
+  const cam = cameras[ci] ?? cameras[0];
 
   const filter = useMemo(() => {
     const blur = ((100 - img.focus) / 100) * 3 + ((100 - img.sharp) / 100) * 0.6;
     return `brightness(${img.brightness / 100}) contrast(${img.contrast / 100}) saturate(${img.saturate / 100}) hue-rotate(${img.hue}deg)${blur > 0.05 ? ` blur(${blur.toFixed(2)}px)` : ''}`;
   }, [img]);
 
-  const selectCam = (i: number) => { setCi(i); setName(CAMERAS[i].n); setImg(DEFAULTS); };
+  const selectCam = (i: number) => { setCi(i); setName(cameras[i].n); setImg(DEFAULTS); };
   const previewScene: CSSProperties = { ...sceneStyle(ci), filter, transition: 'filter .1s' };
 
   return (
@@ -159,7 +161,7 @@ export function CameraSettingsPage() {
           <div className="card" style={{ padding: 16, marginBottom: 14 }}>
             <h4 className="eyebrow" style={{ marginBottom: 14 }}>Select camera</h4>
             <div className="camlist" style={{ maxHeight: 200, overflow: 'auto' }}>
-              {CAMERAS.map((c, i) => (
+              {cameras.map((c, i) => (
                 <div key={c.id} className={`camlist-item${i === ci ? ' sel' : ''}`} onClick={() => selectCam(i)}>
                   <div className="thumb"><div className="scene" style={sceneStyle(i)} /></div>
                   <div className="nm">{c.n}<span>{c.id}</span></div>

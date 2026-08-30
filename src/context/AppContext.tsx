@@ -1,6 +1,8 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { INCOMING, SEED_ALARMS, newAlarmId, type Alarm, type Severity } from '../data/alarms';
+import { SEED_ALARMS, type Alarm, type Severity } from '../data/alarms';
+import { CAMERAS, type Camera } from '../data/cameras';
+import { api, type NewCameraInput } from '../api/client';
 
 type Theme = 'dark' | 'light';
 
@@ -11,6 +13,9 @@ interface AppState {
 
   site: number;
   setSite: (i: number) => void;
+
+  cameras: Camera[];
+  addCamera: (input: NewCameraInput) => Promise<Camera>;
 
   alarms: Alarm[];
   openAlarmCount: number;
@@ -40,21 +45,15 @@ function readTheme(): Theme {
   return 'dark';
 }
 
-function hm(): string {
-  const d = new Date();
-  const p = (n: number) => (n < 10 ? '0' : '') + n;
-  return p(d.getHours()) + ':' + p(d.getMinutes());
-}
-
 export function AppProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(readTheme);
   const [site, setSite] = useState(0);
+  const [cameras, setCameras] = useState<Camera[]>(CAMERAS);
   const [alarms, setAlarms] = useState<Alarm[]>(SEED_ALARMS);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [alarmFilter, setAlarmFilter] = useState<Severity | 'all'>('all');
   const [ringTick, setRingTick] = useState(0);
   const [toast, setToast] = useState<Alarm | null>(null);
-  const inPtr = useRef(0);
 
   const setTheme = useCallback((t: Theme) => {
     setThemeState(t);
@@ -70,22 +69,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAlarms((prev) => prev.map((a) => (a.id === id ? { ...a, ack: true } : a)));
   }, []);
 
-  // Live alarm feed — a new alarm every ~14s after an initial delay.
+  const addCamera = useCallback(async (input: NewCameraInput): Promise<Camera> => {
+    const cam = await api.cameras.add(input);
+    setCameras((prev) => [...prev, cam]);
+    return cam;
+  }, []);
+
+  // Load cameras from the API on mount (falls back to the seeded list).
   useEffect(() => {
-    let interval = 0;
+    let alive = true;
+    api.cameras.list().then((list) => { if (alive) setCameras(list); }).catch(() => { /* keep seed */ });
+    return () => { alive = false; };
+  }, []);
+
+  // Live alarm feed — subscribe to the API's alarm stream after a short delay.
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
     const start = window.setTimeout(() => {
-      interval = window.setInterval(() => {
-        const src = INCOMING[inPtr.current % INCOMING.length];
-        inPtr.current += 1;
-        const alarm: Alarm = { ...src, id: newAlarmId(), ack: false, sub: `${src.sub} · ${hm()}` };
+      unsubscribe = api.alarms.stream((alarm) => {
         setAlarms((prev) => [alarm, ...prev].slice(0, 12));
         setRingTick((t) => t + 1);
         if (alarm.sev === 'crit') setToast(alarm);
-      }, 14000);
+      });
     }, 6000);
     return () => {
       window.clearTimeout(start);
-      window.clearInterval(interval);
+      unsubscribe?.();
     };
   }, []);
 
@@ -101,6 +110,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const value: AppState = {
     theme, toggleTheme, setTheme,
     site, setSite,
+    cameras, addCamera,
     alarms, openAlarmCount, ackAlarm,
     drawerOpen, setDrawerOpen,
     alarmFilter, setAlarmFilter,

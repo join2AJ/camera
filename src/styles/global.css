@@ -549,3 +549,33 @@
     .tl-track{height:46px}
   }
   @media (prefers-reduced-motion:reduce){*{animation:none!important}}
+
+/* ---------- MODAL / WIZARD (added with the app scaffold) ---------- */
+.modal-scrim{position:fixed;inset:0;background:rgba(4,7,10,.55);z-index:80;display:grid;place-items:center;
+  padding:20px;backdrop-filter:blur(2px)}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);
+  width:520px;max-width:100%;max-height:90vh;overflow:auto;display:flex;flex-direction:column}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--border-soft)}
+.modal-head h3{font-family:var(--disp);font-size:16px;letter-spacing:.02em}
+.modal-head .x{width:30px;height:30px;border-radius:8px;background:transparent;border:0;color:var(--muted);display:grid;place-items:center}
+.modal-head .x:hover{background:var(--raised);color:var(--text)}
+.modal-body{padding:20px}
+.modal-foot{display:flex;justify-content:space-between;gap:10px;padding:16px 20px;border-top:1px solid var(--border-soft)}
+.steps{display:flex;gap:8px;padding:14px 20px 0}
+.step-dot{flex:1;height:4px;border-radius:3px;background:var(--raised-2)}
+.step-dot.on{background:var(--accent)}
+.step-dot.done{background:var(--accent-dim)}
+.step-label{font-family:var(--disp);font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);padding:10px 20px 0}
+.pick{display:flex;flex-direction:column;gap:8px}
+.pick-opt{display:flex;align-items:center;gap:12px;padding:13px;border-radius:10px;border:1px solid var(--border);
+  background:var(--raised);cursor:pointer;text-align:left;color:var(--text)}
+.pick-opt.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.pick-opt .pk-ic{width:34px;height:34px;border-radius:9px;background:var(--raised-2);display:grid;place-items:center;color:var(--accent);flex:0 0 auto}
+.pick-opt .pk-ic svg{width:18px;height:18px}
+.pick-opt .pk-t{flex:1}
+.pick-opt .pk-t .pk-title{font-size:13.5px;font-weight:600}
+.pick-opt .pk-t .pk-sub{font-size:11.5px;color:var(--muted);margin-top:2px}
+.confirm-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-soft);font-size:13px}
+.confirm-row:last-child{border-bottom:0}
+.confirm-row .k{color:var(--muted)}
+.confirm-row .v{font-family:var(--mono);font-size:12px}
