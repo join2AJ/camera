@@ -7,8 +7,13 @@ application**: a React + Vite + TypeScript single‑page app.
 > Data is served through a typed API client (`src/api/client.ts`) currently
 > backed by in‑memory demo data — swap the method bodies for `fetch` calls to go
 > live. Camera tiles render a real player: **HLS** (via a lazily‑loaded hls.js,
-> or native HLS on Safari) and **WebRTC/WHEP**, falling back to a gradient
-> placeholder when a camera has no stream URL.
+> or native HLS on Safari), **WebRTC/WHEP**, and **MJPEG / snapshot**, falling
+> back to a gradient placeholder when a camera has no stream URL.
+>
+> **The default fleet is live:** the app ships pointed at ~12 public NYC DOT
+> traffic cameras (HTTPS JPEG snapshots from `webcams.nyctmc.org`), so the Live
+> wall shows real moving footage out of the box — no proxy or config needed.
+> Edit `src/data/cameras.ts` to use your own cameras.
 
 ## Features
 

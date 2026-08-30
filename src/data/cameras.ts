@@ -9,22 +9,29 @@ export interface Camera {
   /** Optional live stream. When absent, the UI shows a gradient placeholder. */
   streamType?: StreamType;
   streamUrl?: string;
+  /** Snapshot poll interval in ms (default 1000). */
+  refreshMs?: number;
 }
 
-/** Demo camera fleet. In a real deployment this comes from the NVR / discovery service. */
+/**
+ * Default camera fleet — real, public NYC DOT traffic cameras (HTTPS JPEG
+ * snapshots), so the app shows live video out of the box. Source:
+ * https://webcams.nyctmc.org/api/cameras (public, government-operated).
+ * In a real deployment this list comes from your NVR / discovery service.
+ */
 export const CAMERAS: Camera[] = [
-  { n: 'West Entrance', id: 'CAM-01', loc: 'Door · 4K', people: 2, face: true },
-  { n: 'Parking Lot A', id: 'CAM-02', loc: 'Wide · 4K', people: 1, face: false },
-  { n: 'Lobby', id: 'CAM-03', loc: 'PTZ · 4K', people: 3, face: true },
-  { n: 'Loading Dock', id: 'CAM-04', loc: 'Wide · 4K', people: 1, face: false },
-  { n: 'Corridor 2F', id: 'CAM-05', loc: 'Fixed · 2K', people: 0, face: false },
-  { n: 'Roof Access', id: 'CAM-06', loc: 'Fixed · 2K', people: 0, face: false },
-  { n: 'Server Room', id: 'CAM-07', loc: 'Fixed · 2K', people: 0, face: false },
-  { n: 'Cafeteria', id: 'CAM-08', loc: 'Wide · 4K', people: 5, face: false },
-  { n: 'Reception', id: 'CAM-09', loc: 'PTZ · 4K', people: 2, face: true },
-  { n: 'Stairwell B', id: 'CAM-10', loc: 'Fixed · 2K', people: 0, face: false },
-  { n: 'Perimeter N', id: 'CAM-11', loc: 'Thermal', people: 0, face: false },
-  { n: 'Garage Gate', id: 'CAM-12', loc: 'LPR · 4K', people: 1, face: false },
+  { n: 'Broadway @ 42 St', id: 'NYC-01', loc: 'Manhattan · Traffic', people: 0, face: false, streamType: 'snapshot', streamUrl: 'https://webcams.nyctmc.org/api/cameras/9565e94d-66f2-4965-9c13-82d5500d6cfd/image' },
+  { n: 'Broadway @ Columbus Circle', id: 'NYC-02', loc: 'Manhattan · Traffic', people: 0, face: false, streamType: 'snapshot', streamUrl: 'https://webcams.nyctmc.org/api/cameras/c880d0c4-db84-44c2-9f00-62f21a83b5d0/image' },
+  { n: '5 Ave @ 42 St', id: 'NYC-03', loc: 'Manhattan · Traffic', people: 0, face: false, streamType: 'snapshot', streamUrl: 'https://webcams.nyctmc.org/api/cameras/f4e822f7-d2a2-4146-851c-04b2fa6d5265/image' },
+  { n: '1 Ave @ 42 St', id: 'NYC-04', loc: 'Manhattan · Traffic', people: 0, face: false, streamType: 'snapshot', streamUrl: 'https://webcams.nyctmc.org/api/cameras/f0e5c9aa-7700-4918-834f-c106189bde4b/image' },
+  { n: '2 Ave @ 42 St', id: 'NYC-05', loc: 'Manhattan · Traffic', people: 0, face: false, streamType: 'snapshot', streamUrl: 'https://webcams.nyctmc.org/api/cameras/8f692f55-8118-423b-8bcb-1ea49eaf442b/image' },
+  { n: 'Canal St @ Holland Tunnel', id: 'NYC-06', loc: 'Manhattan · Traffic', people: 0, face: false, streamType: 'snapshot', streamUrl: 'https://webcams.nyctmc.org/api/cameras/25ad72fe-e74c-49af-b4c0-34c9eac14655/image' },
+  { n: 'FDR Dr @ Brooklyn Bridge', id: 'NYC-07', loc: 'Manhattan · Traffic', people: 0, face: false, streamType: 'snapshot', streamUrl: 'https://webcams.nyctmc.org/api/cameras/ecba28cb-ac70-4d25-abcb-6506111ea120/image' },
+  { n: 'Central Park West @ 86 St', id: 'NYC-08', loc: 'Manhattan · Traffic', people: 0, face: false, streamType: 'snapshot', streamUrl: 'https://webcams.nyctmc.org/api/cameras/8a6bc417-4877-4ebe-8052-88c1b261baf1/image' },
+  { n: 'East 60th St @ Queensboro Bridge', id: 'NYC-09', loc: 'Manhattan · Traffic', people: 0, face: false, streamType: 'snapshot', streamUrl: 'https://webcams.nyctmc.org/api/cameras/d83aed40-b117-424b-8caf-35c3afe82527/image' },
+  { n: 'Canal St @ Chrystie St', id: 'NYC-10', loc: 'Manhattan · Traffic', people: 0, face: false, streamType: 'snapshot', streamUrl: 'https://webcams.nyctmc.org/api/cameras/8cc75cbc-e050-4947-aee8-639f63fe4ca7/image' },
+  { n: 'FDR Drive @ 122 St', id: 'NYC-11', loc: 'Manhattan · Traffic', people: 0, face: false, streamType: 'snapshot', streamUrl: 'https://webcams.nyctmc.org/api/cameras/ec1e7b42-18de-4475-8c89-9e80f21e5b6c/image' },
+  { n: 'Grand Central Pkwy @ Midland', id: 'NYC-12', loc: 'Queens · Traffic', people: 0, face: false, streamType: 'snapshot', streamUrl: 'https://webcams.nyctmc.org/api/cameras/3793f20a-28ce-411d-b09b-f7baa2b6d55b/image' },
 ];
 
 /** Layered gradients that read as a camera scene — a stand-in for a real video stream. */
