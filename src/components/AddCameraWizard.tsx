@@ -15,8 +15,17 @@ const SOURCES: { key: Source; title: string; sub: string; icon: ReactNode }[] = 
 const STREAMS: { key: StreamType | 'none'; title: string; sub: string }[] = [
   { key: 'hls', title: 'HLS', sub: 'Recorded / higher-latency live (.m3u8)' },
   { key: 'webrtc', title: 'WebRTC (WHEP)', sub: 'Sub-second live view' },
+  { key: 'mjpeg', title: 'MJPEG', sub: 'Motion-JPEG stream (…/mjpg/video.cgi)' },
+  { key: 'snapshot', title: 'Snapshot (polled)', sub: 'Refresh a still JPEG — best for HTTP cams behind the proxy' },
   { key: 'none', title: 'No stream yet', sub: 'Add the camera, wire video later' },
 ];
+
+const urlHint: Record<StreamType, string> = {
+  hls: 'https://…/stream.m3u8',
+  webrtc: 'https://…/whep',
+  mjpeg: 'http://host:8080/axis-cgi/mjpg/video.cgi',
+  snapshot: 'http://host:8080/axis-cgi/jpg/image.cgi',
+};
 
 export function AddCameraWizard({ onClose }: { onClose: () => void }) {
   const app = useApp();
@@ -100,8 +109,13 @@ export function AddCameraWizard({ onClose }: { onClose: () => void }) {
               </div>
               {streamKind !== 'none' && (
                 <div className="field" style={{ marginTop: 14 }}>
-                  <label>{streamKind === 'hls' ? 'HLS URL (.m3u8)' : 'WHEP endpoint URL'}</label>
-                  <input type="text" placeholder={streamKind === 'hls' ? 'https://…/stream.m3u8' : 'https://…/whep'} value={streamUrl} onChange={(e) => setStreamUrl(e.target.value)} />
+                  <label>Stream URL</label>
+                  <input type="text" placeholder={urlHint[streamKind]} value={streamUrl} onChange={(e) => setStreamUrl(e.target.value)} />
+                  {streamUrl.startsWith('http:') && (
+                    <p style={{ fontSize: 11, color: 'var(--motion)', margin: '6px 0 0', fontFamily: 'var(--mono)' }}>
+                      HTTP camera — will be routed through the Netlify proxy when the app is on HTTPS.
+                    </p>
+                  )}
                 </div>
               )}
             </>

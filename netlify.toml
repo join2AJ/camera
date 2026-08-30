@@ -1,0 +1,20 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# Serve HTTP cameras over HTTPS to avoid mixed-content blocking.
+# Usage from the app: /camproxy?url=<encoded http camera url>
+[[redirects]]
+  from = "/camproxy"
+  to = "/.netlify/functions/camproxy"
+  status = 200
+
+# SPA fallback — let React Router handle deep links / refreshes.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

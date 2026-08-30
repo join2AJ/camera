@@ -65,6 +65,30 @@ src/
 - Semantic color encodes state (online / motion / alert / AI), separate from the cyan accent.
 - Type: Chakra Petch (display/metrics), IBM Plex Sans (UI), IBM Plex Mono (data).
 
+## Connecting an HTTP camera (e.g. AXIS MJPEG) on an HTTPS site
+
+Browsers block an HTTPS page from loading an HTTP camera ("mixed content"), and
+a page like `…/cgi-bin/guestimage.html` is a *viewer*, not a stream. To show such
+a camera:
+
+1. Find the camera's **image endpoint**, not its HTML page. For AXIS:
+   - snapshot: `http://<host>:<port>/axis-cgi/jpg/image.cgi`
+   - MJPEG:    `http://<host>:<port>/axis-cgi/mjpg/video.cgi`
+   (older firmware: `/jpg/image.jpg`, `/mjpg/video.mjpg`)
+2. Add the camera with stream type **Snapshot (polled)** and that URL. Snapshot
+   mode is the reliable choice behind the proxy; true MJPEG streaming can't pass
+   through a serverless function.
+3. Deploy on Netlify. `netlify.toml` routes `/camproxy` to
+   `netlify/functions/camproxy.mjs`, which fetches the HTTP camera server-side
+   and returns it over HTTPS. The app auto-routes any `http://` camera through
+   `/camproxy` when it's running on HTTPS.
+4. Allow your camera's host: set the `CAM_PROXY_ALLOW` env var in Netlify
+   (comma-separated hostnames, or `*` to allow any — not recommended). Edit
+   `DEFAULT_ALLOW` in the function for a committed default.
+
+> The proxy only handles single-JPEG responses (snapshots). Multipart MJPEG and
+> RTSP need a media server (go2rtc / MediaMTX) that emits HLS or WebRTC instead.
+
 ## Wiring real cameras (next steps)
 
 - **Streaming is ready**: give a camera a `streamType` (`'hls'` | `'webrtc'`) and

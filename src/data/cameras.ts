@@ -1,4 +1,4 @@
-export type StreamType = 'hls' | 'webrtc';
+export type StreamType = 'hls' | 'webrtc' | 'mjpeg' | 'snapshot';
 
 export interface Camera {
   n: string;
