@@ -1,36 +1,34 @@
 import { Scene } from '../components/common';
-
-type St = 'online' | 'update' | 'warn';
-const HEALTH: [string, string, St, string, string, number, string][] = [
-  ['West Entrance', 'CAM-01', 'online', 'v4.3.0', '41d 06h', 96, '38°C'],
-  ['Parking Lot A', 'CAM-02', 'update', 'v4.2.1', '41d 06h', 88, '42°C'],
-  ['Lobby', 'CAM-03', 'online', 'v4.3.0', '12d 22h', 99, '36°C'],
-  ['Loading Dock', 'CAM-04', 'online', 'v4.3.0', '41d 06h', 74, '44°C'],
-  ['Corridor 2F', 'CAM-05', 'update', 'v4.2.1', '41d 06h', 91, '35°C'],
-  ['Perimeter N', 'CAM-11', 'warn', 'v4.3.0', '3d 01h', 52, '51°C'],
-  ['Garage Gate', 'CAM-12', 'online', 'v4.3.0', '41d 05h', 84, '39°C'],
-];
-const CAM_INDEX: Record<string, number> = { 'CAM-01': 0, 'CAM-02': 1, 'CAM-03': 2, 'CAM-04': 3, 'CAM-05': 4, 'CAM-11': 10, 'CAM-12': 11 };
-
-const LOGS: [string, 'ok' | 'info' | 'warn' | 'err', string][] = [
-  ['14:32:07', 'ok', 'Face template matched · A. Okafor · CAM-01'],
-  ['14:18:44', 'info', 'Motion recording started · CAM-03'],
-  ['13:47:02', 'warn', 'Fence breach · Zone A · CAM-04 · alert dispatched'],
-  ['12:55:10', 'info', 'Firmware check · 3 updates available'],
-  ['11:40:31', 'err', 'CAM-11 signal degraded · 52% · investigating'],
-  ['10:02:18', 'ok', 'Encryption key rotation completed'],
-  ['08:40:55', 'info', 'Occupancy peak · 312 people · atrium'],
-  ['06:00:00', 'ok', 'Nightly integrity check passed · 0 errors'],
-];
+import { useApp } from '../context/AppContext';
 
 const sig = (v: number) => (v > 80 ? 'var(--online)' : v > 60 ? 'var(--motion)' : 'var(--alert)');
-function statusChip(s: St) {
-  if (s === 'online') return <span className="chip online"><span className="d" />Online</span>;
-  if (s === 'update') return <span className="chip motion"><span className="d" style={{ background: 'var(--motion)' }} />Update</span>;
-  return <span className="chip rec"><span className="d" />Attention</span>;
+
+/** Deterministic pseudo-metric so a given camera always shows the same health. */
+function h(seed: number, min: number, span: number) {
+  const r = Math.abs(Math.sin(seed * 12.9898) * 43758.5453) % 1;
+  return Math.round(min + r * span);
 }
 
 export function MaintenancePage() {
+  const { cameras } = useApp();
+
+  const rows = cameras.map((c, i) => {
+    const signal = h(i + 1, 62, 38);
+    const temp = h(i + 3, 34, 18);
+    const days = h(i + 7, 3, 60);
+    return { name: c.n, id: c.id, index: i, fw: 'v4.3.0', uptime: `${days}d ${h(i + 2, 0, 23)}h`, signal, temp };
+  });
+
+  const LOGS: [string, 'ok' | 'info' | 'warn' | 'err', string][] = [
+    ['14:32:07', 'ok', `Snapshot relay healthy · ${cameras[0]?.id ?? 'CAM'}`],
+    ['14:18:44', 'info', `Stream reconnected · ${cameras[1]?.id ?? 'CAM'}`],
+    ['13:47:02', 'info', 'Proxy cache flushed · webcams.nyctmc.org'],
+    ['12:55:10', 'ok', `Health check passed · ${cameras.length} cameras`],
+    ['11:40:31', 'warn', `Elevated latency · ${cameras[cameras.length - 1]?.id ?? 'CAM'}`],
+    ['10:02:18', 'ok', 'Encryption key rotation completed'],
+    ['06:00:00', 'ok', 'Nightly integrity check passed · 0 errors'],
+  ];
+
   return (
     <section>
       <div className="vhead">
@@ -46,14 +44,14 @@ export function MaintenancePage() {
           <table className="health-table">
             <thead><tr><th>Camera</th><th>Status</th><th>Firmware</th><th>Uptime</th><th>Signal</th><th>Temp</th></tr></thead>
             <tbody>
-              {HEALTH.map((h) => (
-                <tr key={h[1]}>
-                  <td><div className="cam-cell"><div className="th"><Scene index={CAM_INDEX[h[1]] ?? 0} /></div><div><div style={{ fontWeight: 500 }}>{h[0]}</div><div className="mono" style={{ fontSize: 10.5, color: 'var(--faint)' }}>{h[1]}</div></div></div></td>
-                  <td>{statusChip(h[2])}</td>
-                  <td className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>{h[3]}</td>
-                  <td className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>{h[4]}</td>
-                  <td><span className="bar-inline"><i style={{ width: `${h[5]}%`, background: sig(h[5]) }} /></span> <span className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>{h[5]}%</span></td>
-                  <td className="mono" style={{ fontSize: 12, color: parseInt(h[6]) > 48 ? 'var(--motion)' : 'var(--muted)' }}>{h[6]}</td>
+              {rows.map((r) => (
+                <tr key={r.id}>
+                  <td><div className="cam-cell"><div className="th"><Scene index={r.index} /></div><div><div style={{ fontWeight: 500 }}>{r.name}</div><div className="mono" style={{ fontSize: 10.5, color: 'var(--faint)' }}>{r.id}</div></div></div></td>
+                  <td><span className="chip online"><span className="d" />Online</span></td>
+                  <td className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>{r.fw}</td>
+                  <td className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>{r.uptime}</td>
+                  <td><span className="bar-inline"><i style={{ width: `${r.signal}%`, background: sig(r.signal) }} /></span> <span className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>{r.signal}%</span></td>
+                  <td className="mono" style={{ fontSize: 12, color: r.temp > 48 ? 'var(--motion)' : 'var(--muted)' }}>{r.temp}°C</td>
                 </tr>
               ))}
             </tbody>
@@ -62,9 +60,9 @@ export function MaintenancePage() {
         <div>
           <div className="cardp" style={{ marginBottom: 16 }}>
             <h3>Firmware</h3>
-            <p className="sub">3 updates available</p>
-            <div className="fw-card"><div className="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg></div><div className="fm"><div className="t">Cam 02, 05, 09</div><div className="s">v4.2.1 → v4.3.0 · security fixes</div></div><button className="btn primary" style={{ padding: '6px 12px' }}>Update</button></div>
-            <div className="fw-card"><div className="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M20 6L9 17l-5-5" /></svg></div><div className="fm"><div className="t">NVR Controller</div><div className="s">v11.4 · up to date</div></div><span className="chip online"><span className="d" />Current</span></div>
+            <p className="sub">Fleet up to date</p>
+            <div className="fw-card"><div className="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M20 6L9 17l-5-5" /></svg></div><div className="fm"><div className="t">All cameras</div><div className="s">v4.3.0 · current</div></div><span className="chip online"><span className="d" />Current</span></div>
+            <div className="fw-card"><div className="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M20 6L9 17l-5-5" /></svg></div><div className="fm"><div className="t">Edge / relay</div><div className="s">Netlify function · healthy</div></div><span className="chip online"><span className="d" />Current</span></div>
           </div>
           <div className="cardp">
             <h3>System Log</h3>

@@ -581,3 +581,8 @@
 .confirm-row:last-child{border-bottom:0}
 .confirm-row .k{color:var(--muted)}
 .confirm-row .v{font-family:var(--mono);font-size:12px}
+
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.search input{border:0;background:transparent;outline:none;color:var(--text);font-family:var(--sans);font-size:12.5px;width:100%;min-width:0}
+.search input::placeholder{color:var(--faint)}

@@ -29,6 +29,9 @@ interface AppState {
   overrides: Record<string, CamOverride>;
   saveOverride: (id: string, o: CamOverride) => void;
 
+  query: string;
+  setQuery: (q: string) => void;
+
   alarms: Alarm[];
   openAlarmCount: number;
   ackAlarm: (id: number) => void;
@@ -77,6 +80,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [alarmFilter, setAlarmFilter] = useState<Severity | 'all'>('all');
   const [ringTick, setRingTick] = useState(0);
   const [toast, setToast] = useState<Alarm | null>(null);
+  const [query, setQuery] = useState('');
 
   const setTheme = useCallback((t: Theme) => {
     setThemeState(t);
@@ -154,6 +158,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     theme, toggleTheme, setTheme,
     site, setSite,
     cameras, addCamera, overrides, saveOverride,
+    query, setQuery,
     alarms, openAlarmCount, ackAlarm,
     drawerOpen, setDrawerOpen,
     alarmFilter, setAlarmFilter,

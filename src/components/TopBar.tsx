@@ -39,7 +39,12 @@ export function TopBar({ title }: { title: string }) {
       <div className="top-sp" />
       <div className="search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="7" /><path d="M21 21l-4-4" /></svg>
-        Search cameras…
+        <input
+          type="search"
+          placeholder="Search cameras…"
+          value={app.query}
+          onChange={(e) => { app.setQuery(e.target.value); if (e.target.value) nav('/live'); }}
+        />
       </div>
 
       <div className="menu-wrap" onClick={(e) => e.stopPropagation()}>

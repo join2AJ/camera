@@ -30,12 +30,19 @@ function Boxes({ cam, slot }: { cam: Camera; slot: number }) {
   );
 }
 
+const LAYOUTS = [
+  { cols: 2, label: 'Layout · 2×2' },
+  { cols: 3, label: 'Layout · 3×3' },
+  { cols: 1, label: 'Layout · 1-up' },
+];
+
 export function LivePage() {
-  const { cameras } = useApp();
+  const { cameras, query } = useApp();
   const [selected, setSelected] = useState(0);
   const [wall, setWall] = useState([0, 1, 2, 3]);
   const [wizard, setWizard] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [layout, setLayout] = useState(0);
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width:720px)');
@@ -45,8 +52,16 @@ export function LivePage() {
     return () => mq.removeEventListener('change', update);
   }, []);
 
-  // On phones, show every camera in one scrollable column; on desktop, a 2×2 wall.
-  const shown = isMobile ? cameras.map((_, i) => i) : wall;
+  const q = query.trim().toLowerCase();
+  const matches = (ci: number) => {
+    const c = cameras[ci];
+    return !q || c.n.toLowerCase().includes(q) || c.id.toLowerCase().includes(q) || c.loc.toLowerCase().includes(q);
+  };
+
+  // With a search active, show every match. Otherwise: all cameras on phones, the 2×2 wall on desktop.
+  const base = q ? cameras.map((_, i) => i).filter(matches) : (isMobile ? cameras.map((_, i) => i) : wall);
+  const shown = base;
+  const cols = LAYOUTS[layout].cols;
 
   const select = (ci: number) => {
     setSelected(ci);
@@ -58,35 +73,36 @@ export function LivePage() {
       {wizard && <AddCameraWizard onClose={() => setWizard(false)} />}
       <ViewHead
         title="Live Wall"
-        subtitle={`North Campus · ${shown.length} of ${cameras.length} cameras · analytics running on-device`}
+        subtitle={q
+          ? `${shown.length} camera${shown.length === 1 ? '' : 's'} matching “${query.trim()}”`
+          : `Live feeds · ${shown.length} of ${cameras.length} cameras`}
         actions={
           <>
             <button className="btn" onClick={() => setWizard(true)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 5v14M5 12h14" /></svg>Add camera</button>
-            <button className="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>Layout · 2×2</button>
-            <button className="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3" fill="currentColor" /></svg>Snapshot all</button>
+            <button className="btn" onClick={() => setLayout((l) => (l + 1) % LAYOUTS.length)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>{LAYOUTS[layout].label}</button>
           </>
         }
       />
 
       <div className="live-grid">
-        <div className="wall">
-          {shown.map((ci, slot) => {
+        <div className="wall" style={isMobile ? undefined : { gridTemplateColumns: `repeat(${cols}, 1fr)`, gridAutoRows: '1fr', gridTemplateRows: 'none' }}>
+          {shown.length === 0 && <div style={{ color: 'var(--muted)', padding: 24 }}>No cameras match your search.</div>}
+          {shown.map((ci) => {
             const cam = cameras[ci];
             if (!cam) return null;
             const isSel = ci === selected;
             return (
-              <div key={slot} className={`cam${isSel ? ' sel' : ''}`} onClick={() => select(ci)}>
+              <div key={ci} className={`cam${isSel ? ' sel' : ''}`} onClick={() => select(ci)}>
                 <CameraVideo camera={cam} index={ci} />
                 <div className="scanline" />
                 <div className="cam-top">
                   <div className="cam-name">{cam.n}<span className="id">{cam.id} · {cam.loc}</span></div>
-                  {isSel ? <Chip kind="rec">REC</Chip> : <Chip kind="online">Live</Chip>}
+                  <Chip kind="online">Live</Chip>
                 </div>
                 {cam.people > 0 && <div className="count-badge"><b>{cam.people}</b>people</div>}
-                <Boxes cam={cam} slot={slot} />
+                <Boxes cam={cam} slot={ci} />
                 <div className="cam-bot">
                   <TimeStamp />
-                  {cam.face ? <Chip kind="ai">Face ID</Chip> : <Chip kind="motion" style={{ opacity: 0.85 }}>Motion</Chip>}
                 </div>
               </div>
             );
@@ -97,13 +113,16 @@ export function LivePage() {
           <div className="panel-block" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             <h4>Cameras · {cameras.length}</h4>
             <div className="camlist">
-              {cameras.map((cam, i) => (
-                <div key={cam.id} className={`camlist-item${i === selected ? ' sel' : ''}`} onClick={() => select(i)}>
-                  <div className="thumb"><Scene index={i} /></div>
-                  <div className="nm">{cam.n}<span>{cam.id}</span></div>
-                  {i === selected ? <Chip kind="rec" style={{ padding: '2px 6px' }} /> : <Chip kind="online" style={{ padding: '2px 6px' }} />}
-                </div>
-              ))}
+              {cameras.map((_, i) => i).filter(matches).map((i) => {
+                const cam = cameras[i];
+                return (
+                  <div key={cam.id} className={`camlist-item${i === selected ? ' sel' : ''}`} onClick={() => select(i)}>
+                    <div className="thumb"><Scene index={i} /></div>
+                    <div className="nm">{cam.n}<span>{cam.id}</span></div>
+                    <Chip kind="online" style={{ padding: '2px 6px' }} />
+                  </div>
+                );
+              })}
             </div>
           </div>
           <div className="panel-block">
@@ -118,9 +137,9 @@ export function LivePage() {
 
       <div className="live-strip">
         <div className="metric"><div className="mv">{cameras.length}<small> / {cameras.length}</small></div><div className="ml">Cameras online</div></div>
-        <div className="metric"><div className="mv" style={{ color: 'var(--motion)' }}>3</div><div className="ml">Active motion zones</div></div>
-        <div className="metric"><div className="mv" style={{ color: 'var(--ai)' }}>7</div><div className="ml">People detected now</div></div>
-        <div className="metric"><div className="mv" style={{ color: 'var(--online)' }}>98%</div><div className="ml">System health</div></div>
+        <div className="metric"><div className="mv" style={{ color: 'var(--online)' }}>{cameras.filter((c) => c.streamUrl).length}</div><div className="ml">Live streams</div></div>
+        <div className="metric"><div className="mv" style={{ color: 'var(--accent)' }}>{cameras.filter((c) => c.proxied).length}</div><div className="ml">Relayed via proxy</div></div>
+        <div className="metric"><div className="mv" style={{ color: 'var(--online)' }}>100%</div><div className="ml">System health</div></div>
       </div>
     </section>
   );

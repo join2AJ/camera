@@ -7,46 +7,53 @@ const FILL: CSSProperties = { position: 'absolute', inset: 0, width: '100%', hei
 
 /**
  * Route a camera URL through the Netlify proxy when needed:
- * - `force` (camera.proxied): the camera host isn't reachable from the client
- *   directly (geo/network blocked) so it must be fetched server-side.
+ * - `force` (camera.proxied): host not reachable from the client directly.
  * - HTTP URL on an HTTPS page: browsers block mixed content otherwise.
  */
 function resolveUrl(url: string, force = false): string {
   const https = typeof window !== 'undefined' && window.location.protocol === 'https:';
-  if (force || (https && url.startsWith('http:'))) {
-    return `/camproxy?url=${encodeURIComponent(url)}`;
-  }
+  if (force || (https && url.startsWith('http:'))) return `/camproxy?url=${encodeURIComponent(url)}`;
   return url;
 }
 
-/**
- * Renders a camera's live video.
- *
- * - `hls`      → hls.js (or native HLS on Safari)
- * - `webrtc`   → WHEP handshake
- * - `mjpeg`    → <img> multipart Motion-JPEG stream
- * - `snapshot` → <img> re-fetched a few times per second (robust behind a proxy)
- * - no stream  → gradient placeholder
- */
 export function CameraVideo({ camera, index, style, muted = true }: { camera: Camera; index: number; style?: CSSProperties; muted?: boolean }) {
   if (!camera.streamUrl) return <Scene index={index} style={style} />;
   const force = !!camera.proxied;
-  const s: CSSProperties = camera.imgFilter ? { ...style, filter: camera.imgFilter } : style ?? {};
-  if (camera.streamType === 'mjpeg') return <ImageStream url={resolveUrl(camera.streamUrl, force)} style={s} />;
-  if (camera.streamType === 'snapshot') return <ImageStream url={resolveUrl(camera.streamUrl, force)} refreshMs={camera.refreshMs ?? 1000} style={s} />;
-  return <VideoStream camera={camera} style={s} muted={muted} />;
+  const filter = camera.imgFilter || undefined;
+  if (camera.streamType === 'mjpeg') return <ImageStream url={resolveUrl(camera.streamUrl, force)} filter={filter} style={style} />;
+  if (camera.streamType === 'snapshot') return <ImageStream url={resolveUrl(camera.streamUrl, force)} refreshMs={camera.refreshMs ?? 1000} filter={filter} style={style} />;
+  return <VideoStream camera={camera} style={style} muted={muted} filter={filter} />;
+}
+
+/** Small status overlay for connecting / offline tiles. */
+function Status({ label, spin }: { label: string; spin?: boolean }) {
+  return (
+    <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: '#05080c', color: 'var(--faint)', gap: 8 }}>
+      <svg viewBox="0 0 24 24" width={26} height={26} fill="none" stroke="currentColor" strokeWidth={1.6} style={spin ? { animation: 'spin 1s linear infinite' } : undefined}>
+        {spin
+          ? <path d="M21 12a9 9 0 11-6.2-8.6" />
+          : <><path d="M2 8.8a15 15 0 0120 0M5 12.5a10 10 0 0114 0M8.5 16a5 5 0 017 0" /><path d="M12 20h.01" /><path d="M3 3l18 18" stroke="var(--alert)" /></>}
+      </svg>
+      <span style={{ fontSize: 11, fontFamily: 'var(--mono)' }}>{label}</span>
+    </div>
+  );
 }
 
 /**
  * MJPEG (single multipart src) or polled snapshot.
  *
- * For snapshots we preload each frame in a detached Image and only swap it into
- * the DOM once it has fully decoded, then wait `refreshMs` before fetching the
- * next. This never cancels an in-flight download, so it degrades gracefully on
- * slow links (fewer fps) instead of showing a permanently blank tile.
+ * Snapshots preload each frame off-screen and only swap it in once decoded, so
+ * slow links degrade to fewer fps instead of a blank tile. Polling pauses while
+ * the tile is scrolled off-screen (IntersectionObserver) to save data and proxy
+ * calls, keeps the last good frame, and shows a "Signal lost" overlay after
+ * repeated failures instead of the browser's broken-image icon.
  */
-function ImageStream({ url, refreshMs, style }: { url: string; refreshMs?: number; style?: CSSProperties }) {
+function ImageStream({ url, refreshMs, filter, style }: { url: string; refreshMs?: number; filter?: string; style?: CSSProperties }) {
+  const wrapRef = useRef<HTMLDivElement>(null);
   const [src, setSrc] = useState<string | undefined>(refreshMs ? undefined : url);
+  const [state, setState] = useState<'connecting' | 'ok' | 'lost'>(refreshMs ? 'connecting' : 'ok');
+  const visible = useRef(true);
+  const errors = useRef(0);
 
   useEffect(() => {
     if (!refreshMs) { setSrc(url); return; }
@@ -56,27 +63,48 @@ function ImageStream({ url, refreshMs, style }: { url: string; refreshMs?: numbe
 
     const loadNext = () => {
       if (stopped) return;
+      if (!visible.current) { timer = window.setTimeout(loadNext, 1000); return; } // paused off-screen
       const next = `${url}${sep}_t=${Date.now()}`;
       const img = new Image();
       img.onload = () => {
         if (stopped) return;
+        errors.current = 0;
         setSrc(next);
+        setState('ok');
         timer = window.setTimeout(loadNext, refreshMs);
       };
       img.onerror = () => {
         if (stopped) return;
+        errors.current += 1;
+        if (errors.current >= 3) setState((s) => (src ? s : 'lost'));
         timer = window.setTimeout(loadNext, Math.max(refreshMs, 3000));
       };
       img.src = next;
     };
     loadNext();
     return () => { stopped = true; window.clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url, refreshMs]);
 
-  return <img src={src} alt="camera" style={{ ...FILL, ...style }} />;
+  // Pause polling while off-screen.
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver((entries) => { visible.current = entries[0]?.isIntersecting ?? true; }, { rootMargin: '200px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  return (
+    <div ref={wrapRef} style={{ ...FILL, filter, overflow: 'hidden', ...style }}>
+      {src && <img src={src} alt="camera" onError={() => { errors.current += 1; if (errors.current >= 3 && !src) setState('lost'); }} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
+      {!src && state === 'connecting' && <Status label="Connecting…" spin />}
+      {!src && state === 'lost' && <Status label="Signal lost" />}
+    </div>
+  );
 }
 
-function VideoStream({ camera, style, muted }: { camera: Camera; style?: CSSProperties; muted: boolean }) {
+function VideoStream({ camera, style, muted, filter }: { camera: Camera; style?: CSSProperties; muted: boolean; filter?: string }) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -84,11 +112,8 @@ function VideoStream({ camera, style, muted }: { camera: Camera; style?: CSSProp
     if (!video || !camera.streamUrl) return;
     const url = resolveUrl(camera.streamUrl, !!camera.proxied);
 
-    if (camera.streamType === 'webrtc') {
-      return attachWhep(video, url);
-    }
+    if (camera.streamType === 'webrtc') return attachWhep(video, url);
 
-    // Native HLS (Safari) needs no library.
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = url;
       const onLoaded = () => { void video.play().catch(() => {}); };
@@ -96,7 +121,6 @@ function VideoStream({ camera, style, muted }: { camera: Camera; style?: CSSProp
       return () => video.removeEventListener('loadedmetadata', onLoaded);
     }
 
-    // Elsewhere, load hls.js on demand so it stays out of the initial bundle.
     let destroy = () => {};
     let cancelled = false;
     void import('hls.js').then(({ default: Hls }) => {
@@ -108,9 +132,9 @@ function VideoStream({ camera, style, muted }: { camera: Camera; style?: CSSProp
       destroy = () => hls.destroy();
     });
     return () => { cancelled = true; destroy(); };
-  }, [camera.streamUrl, camera.streamType]);
+  }, [camera.streamUrl, camera.streamType, camera.proxied]);
 
-  return <video ref={videoRef} muted={muted} autoPlay playsInline style={{ ...FILL, ...style }} />;
+  return <video ref={videoRef} muted={muted} autoPlay playsInline style={{ ...FILL, filter, ...style }} />;
 }
 
 /** Minimal WHEP client: POST the SDP offer, apply the SDP answer. */
@@ -120,7 +144,6 @@ function attachWhep(video: HTMLVideoElement, url: string): () => void {
   pc.addTransceiver('video', { direction: 'recvonly' });
   pc.addTransceiver('audio', { direction: 'recvonly' });
   pc.ontrack = (e) => { if (e.streams[0]) video.srcObject = e.streams[0]; };
-
   (async () => {
     try {
       const offer = await pc.createOffer();
@@ -128,10 +151,7 @@ function attachWhep(video: HTMLVideoElement, url: string): () => void {
       const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/sdp' }, body: offer.sdp ?? '' });
       const answer = await res.text();
       if (!closed) await pc.setRemoteDescription({ type: 'answer', sdp: answer });
-    } catch {
-      /* stream unavailable — video simply stays black */
-    }
+    } catch { /* stream unavailable */ }
   })();
-
   return () => { closed = true; pc.close(); };
 }
