@@ -551,7 +551,7 @@
   @media (prefers-reduced-motion:reduce){*{animation:none!important}}
 
 /* ---------- MODAL / WIZARD (added with the app scaffold) ---------- */
-.modal-scrim{position:fixed;inset:0;background:rgba(4,7,10,.55);z-index:80;display:grid;place-items:center;
+.modal-scrim{position:fixed;inset:0;background:rgba(4,7,10,.55);z-index:80;display:flex;align-items:center;justify-content:center;
   padding:20px;backdrop-filter:blur(2px)}
 .modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);
   width:520px;max-width:100%;max-height:90vh;overflow:auto;display:flex;flex-direction:column}
