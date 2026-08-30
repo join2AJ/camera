@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Toggle } from '../components/common';
+import { useApp } from '../context/AppContext';
 
 interface Drive { name: string; used: string; cap: string; segs: [string, number][]; }
 interface Store { title: string; note: string; drives: Drive[]; foot: string; }
@@ -26,6 +27,7 @@ const STORE: Record<'device' | 'cloud', Store> = {
 };
 
 export function StoragePage() {
+  const { notify } = useApp();
   const [which, setWhich] = useState<'device' | 'cloud'>('device');
   const [ret1, setRet1] = useState(30);
   const [ret2, setRet2] = useState(90);
@@ -73,7 +75,7 @@ export function StoragePage() {
             <span className="chip online"><span className="d" />Keys healthy</span>
             <span className="mono" style={{ fontSize: 11.5, color: 'var(--muted)' }}>next rotation · 63d</span>
           </div>
-          <button className="btn primary" style={{ width: '100%', justifyContent: 'center', marginTop: 12 }}>Manage keys</button>
+          <button className="btn primary" style={{ width: '100%', justifyContent: 'center', marginTop: 12 }} onClick={() => notify('Key management needs a KMS backend')}>Manage keys</button>
         </div>
       </div>
 

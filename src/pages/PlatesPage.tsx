@@ -1,3 +1,6 @@
+import { useApp } from '../context/AppContext';
+import { downloadCsv } from '../lib/csv';
+
 const PLATES: [string, string, 'allow' | 'deny' | 'unknown', string, string, string][] = [
   ['7XY·B420', 'Silver sedan', 'allow', 'Opened', '14:41', '#3a4a5e'],
   ['9ZQ·3388', 'Black SUV', 'deny', 'Held', '13:12', '#2a2f38'],
@@ -14,13 +17,18 @@ function status(s: 'allow' | 'deny' | 'unknown') {
 }
 
 export function PlatesPage() {
+  const { notify } = useApp();
+  const exportLog = () => {
+    downloadCsv('anpr-log.csv', ['Plate', 'Vehicle', 'Status', 'Gate', 'Time'], PLATES.map((p) => [p[0], p[1], p[2], p[3], p[4]]));
+    notify('ANPR log exported');
+  };
   return (
     <section>
       <div className="vhead">
         <div><h2>License Plate Recognition</h2><p>Garage Gate &amp; Perimeter · reads matched against allow / deny lists</p></div>
         <div className="toolbar">
-          <button className="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 5v14M5 12h14" /></svg>Add to list</button>
-          <button className="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>Export log</button>
+          <button className="btn" onClick={() => notify('Add-to-list needs the ANPR backend')}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 5v14M5 12h14" /></svg>Add to list</button>
+          <button className="btn primary" onClick={exportLog}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>Export log</button>
         </div>
       </div>
       <div className="kpi-row">

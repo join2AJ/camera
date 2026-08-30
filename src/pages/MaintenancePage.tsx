@@ -10,7 +10,7 @@ function h(seed: number, min: number, span: number) {
 }
 
 export function MaintenancePage() {
-  const { cameras } = useApp();
+  const { cameras, notify } = useApp();
 
   const rows = cameras.map((c, i) => {
     const signal = h(i + 1, 62, 38);
@@ -34,8 +34,8 @@ export function MaintenancePage() {
       <div className="vhead">
         <div><h2>Maintenance &amp; Health</h2><p>Device fleet · firmware · diagnostics · access</p></div>
         <div className="toolbar">
-          <button className="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M21 12a9 9 0 11-3-6.7L21 8M21 3v5h-5" /></svg>Run diagnostics</button>
-          <button className="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>Update all firmware</button>
+          <button className="btn" onClick={() => notify(`Diagnostics complete · ${cameras.length} cameras healthy`)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M21 12a9 9 0 11-3-6.7L21 8M21 3v5h-5" /></svg>Run diagnostics</button>
+          <button className="btn primary" onClick={() => notify('Firmware is up to date on all cameras')}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>Update all firmware</button>
         </div>
       </div>
 

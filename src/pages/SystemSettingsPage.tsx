@@ -7,7 +7,7 @@ export function SystemSettingsPage() {
     <section>
       <div className="vhead">
         <div><h2>System Settings</h2><p>Organization-wide configuration · applies to all sites</p></div>
-        <div className="toolbar"><button className="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M20 6L9 17l-5-5" /></svg>Save changes</button></div>
+        <div className="toolbar"><button className="btn primary" onClick={() => app.notify('System settings saved')}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M20 6L9 17l-5-5" /></svg>Save changes</button></div>
       </div>
       <div className="grid-2">
         <div className="cardp">

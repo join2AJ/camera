@@ -1,6 +1,6 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { SEED_ALARMS, type Alarm, type Severity } from '../data/alarms';
+import { SEED_ALARMS, newAlarmId, type Alarm, type Severity } from '../data/alarms';
 import { CAMERAS, type Camera } from '../data/cameras';
 import { api, type NewCameraInput } from '../api/client';
 import { imgFilterCss, type ImgAdjust } from '../lib/img';
@@ -35,6 +35,11 @@ interface AppState {
   alarms: Alarm[];
   openAlarmCount: number;
   ackAlarm: (id: number) => void;
+  reportCameraStatus: (id: string, name: string, status: 'ok' | 'lost') => void;
+
+  /** Transient toast for actions that need a backend (demo affordance). */
+  note: string;
+  notify: (msg: string) => void;
 
   drawerOpen: boolean;
   setDrawerOpen: (v: boolean) => void;
@@ -60,6 +65,12 @@ function readTheme(): Theme {
   return 'dark';
 }
 
+function hm(): string {
+  const d = new Date();
+  const p = (n: number) => (n < 10 ? '0' : '') + n;
+  return `${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 function readOverrides(): Record<string, CamOverride> {
   try {
     const raw = localStorage.getItem('aperture-cam-overrides');
@@ -81,6 +92,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [ringTick, setRingTick] = useState(0);
   const [toast, setToast] = useState<Alarm | null>(null);
   const [query, setQuery] = useState('');
+  const [note, setNote] = useState('');
+  const camStatus = useRef<Record<string, 'ok' | 'lost'>>({});
+  const noteTimer = useRef(0);
 
   const setTheme = useCallback((t: Theme) => {
     setThemeState(t);
@@ -94,6 +108,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const ackAlarm = useCallback((id: number) => {
     setAlarms((prev) => prev.map((a) => (a.id === id ? { ...a, ack: true } : a)));
+  }, []);
+
+  const notify = useCallback((msg: string) => {
+    setNote(msg);
+    window.clearTimeout(noteTimer.current);
+    noteTimer.current = window.setTimeout(() => setNote(''), 2600);
+  }, []);
+
+  // Real alarms driven by camera up/down transitions detected by the player.
+  const reportCameraStatus = useCallback((id: string, name: string, status: 'ok' | 'lost') => {
+    const prev = camStatus.current[id];
+    if (prev === status) return;
+    camStatus.current[id] = status;
+    if (prev === undefined) return; // first observation — no alarm
+    const a: Alarm = status === 'lost'
+      ? { id: newAlarmId(), sev: 'crit', title: `Camera offline · ${name}`, sub: `${id} · signal lost · ${hm()}`, kind: 'alert', icon: '<path d="M2 20h.01M6 20a10 10 0 0116 0"/><path d="M3 3l18 18"/>', ack: false }
+      : { id: newAlarmId(), sev: 'infob', title: `Camera back online · ${name}`, sub: `${id} · reconnected · ${hm()}`, kind: 'accent', icon: '<path d="M2 20h.01M6 20a10 10 0 0116 0"/>', ack: false };
+    setAlarms((p) => [a, ...p].slice(0, 20));
+    setRingTick((t) => t + 1);
+    if (a.sev === 'crit') setToast(a);
   }, []);
 
   const saveOverride = useCallback((id: string, o: CamOverride) => {
@@ -129,21 +163,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => { alive = false; };
   }, []);
 
-  // Live alarm feed — subscribe to the API's alarm stream after a short delay.
-  useEffect(() => {
-    let unsubscribe: (() => void) | undefined;
-    const start = window.setTimeout(() => {
-      unsubscribe = api.alarms.stream((alarm) => {
-        setAlarms((prev) => [alarm, ...prev].slice(0, 12));
-        setRingTick((t) => t + 1);
-        if (alarm.sev === 'crit') setToast(alarm);
-      });
-    }, 6000);
-    return () => {
-      window.clearTimeout(start);
-      unsubscribe?.();
-    };
-  }, []);
+  // Alarms are now driven by real camera up/down events via reportCameraStatus
+  // (called by the player), not a simulated feed.
 
   // auto-dismiss toast
   useEffect(() => {
@@ -159,7 +180,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     site, setSite,
     cameras, addCamera, overrides, saveOverride,
     query, setQuery,
-    alarms, openAlarmCount, ackAlarm,
+    alarms, openAlarmCount, ackAlarm, reportCameraStatus, note, notify,
     drawerOpen, setDrawerOpen,
     alarmFilter, setAlarmFilter,
     ringTick, toast, dismissToast: () => setToast(null),

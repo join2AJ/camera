@@ -31,7 +31,7 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 const MSHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export function PlaybackPage() {
-  const { cameras } = useApp();
+  const { cameras, notify } = useApp();
   const [head, setHead] = useState((14.53 / 24) * 100);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
@@ -110,7 +110,7 @@ export function PlaybackPage() {
               <div className="cal-note"><i />Recording available on this day</div>
             </div>
           </div>
-          <button className="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>Export clip</button>
+          <button className="btn" onClick={() => notify(`Clip export at ${tc} needs a recording backend`)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>Export clip</button>
         </div>
       </div>
 

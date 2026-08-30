@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { Camera } from '../data/cameras';
 import { Scene } from './common';
+import { useApp } from '../context/AppContext';
 
 const FILL: CSSProperties = { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', background: '#05080c' };
 
@@ -17,11 +18,13 @@ function resolveUrl(url: string, force = false): string {
 }
 
 export function CameraVideo({ camera, index, style, muted = true }: { camera: Camera; index: number; style?: CSSProperties; muted?: boolean }) {
+  const { reportCameraStatus } = useApp();
   if (!camera.streamUrl) return <Scene index={index} style={style} />;
   const force = !!camera.proxied;
   const filter = camera.imgFilter || undefined;
+  const onStatus = (s: 'ok' | 'lost') => reportCameraStatus(camera.id, camera.n, s);
   if (camera.streamType === 'mjpeg') return <ImageStream url={resolveUrl(camera.streamUrl, force)} filter={filter} style={style} />;
-  if (camera.streamType === 'snapshot') return <ImageStream url={resolveUrl(camera.streamUrl, force)} refreshMs={camera.refreshMs ?? 1000} filter={filter} style={style} />;
+  if (camera.streamType === 'snapshot') return <ImageStream url={resolveUrl(camera.streamUrl, force)} refreshMs={camera.refreshMs ?? 1000} filter={filter} style={style} onStatus={onStatus} />;
   return <VideoStream camera={camera} style={style} muted={muted} filter={filter} />;
 }
 
@@ -48,12 +51,14 @@ function Status({ label, spin }: { label: string; spin?: boolean }) {
  * calls, keeps the last good frame, and shows a "Signal lost" overlay after
  * repeated failures instead of the browser's broken-image icon.
  */
-function ImageStream({ url, refreshMs, filter, style }: { url: string; refreshMs?: number; filter?: string; style?: CSSProperties }) {
+function ImageStream({ url, refreshMs, filter, style, onStatus }: { url: string; refreshMs?: number; filter?: string; style?: CSSProperties; onStatus?: (s: 'ok' | 'lost') => void }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [src, setSrc] = useState<string | undefined>(refreshMs ? undefined : url);
   const [state, setState] = useState<'connecting' | 'ok' | 'lost'>(refreshMs ? 'connecting' : 'ok');
   const visible = useRef(true);
   const errors = useRef(0);
+  const statusRef = useRef(onStatus);
+  statusRef.current = onStatus;
 
   useEffect(() => {
     if (!refreshMs) { setSrc(url); return; }
@@ -71,12 +76,13 @@ function ImageStream({ url, refreshMs, filter, style }: { url: string; refreshMs
         errors.current = 0;
         setSrc(next);
         setState('ok');
+        statusRef.current?.('ok');
         timer = window.setTimeout(loadNext, refreshMs);
       };
       img.onerror = () => {
         if (stopped) return;
         errors.current += 1;
-        if (errors.current >= 3) setState((s) => (src ? s : 'lost'));
+        if (errors.current >= 3) { setState((s) => (src ? s : 'lost')); statusRef.current?.('lost'); }
         timer = window.setTimeout(loadNext, Math.max(refreshMs, 3000));
       };
       img.src = next;
@@ -95,9 +101,10 @@ function ImageStream({ url, refreshMs, filter, style }: { url: string; refreshMs
     return () => io.disconnect();
   }, []);
 
+  const fit = (style?.objectFit as CSSProperties['objectFit']) ?? 'cover';
   return (
     <div ref={wrapRef} style={{ ...FILL, filter, overflow: 'hidden', ...style }}>
-      {src && <img src={src} alt="camera" onError={() => { errors.current += 1; if (errors.current >= 3 && !src) setState('lost'); }} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
+      {src && <img src={src} alt="camera" onError={() => { errors.current += 1; if (errors.current >= 3 && !src) setState('lost'); }} style={{ width: '100%', height: '100%', objectFit: fit, display: 'block' }} />}
       {!src && state === 'connecting' && <Status label="Connecting…" spin />}
       {!src && state === 'lost' && <Status label="Signal lost" />}
     </div>

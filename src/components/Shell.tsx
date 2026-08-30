@@ -2,6 +2,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { Rail } from './Rail';
 import { TopBar } from './TopBar';
 import { AlarmDrawer, LiveToast } from './AlarmDrawer';
+import { useApp } from '../context/AppContext';
 
 const TITLES: Record<string, string> = {
   '/live': 'Live View',
@@ -18,6 +19,7 @@ const TITLES: Record<string, string> = {
 
 export function Shell() {
   const { pathname } = useLocation();
+  const { note } = useApp();
   const title = TITLES[pathname] ?? 'Aperture VMS';
   return (
     <div className="app">
@@ -30,6 +32,7 @@ export function Shell() {
       </main>
       <AlarmDrawer />
       <LiveToast />
+      <div className={`note-toast${note ? ' on' : ''}`}>{note}</div>
     </div>
   );
 }

@@ -21,6 +21,9 @@ const AUDIT: [string, string, string][] = [
   ['09:14:55', 's.volkov', 'viewed playback · Lobby · 08:30–09:00'],
 ];
 
+import { useApp } from '../context/AppContext';
+import { downloadCsv } from '../lib/csv';
+
 const roleBadge = (r: Role) => r === 'admin'
   ? <span className="role-badge admin">Admin</span>
   : r === 'op' ? <span className="role-badge op">Operator</span> : <span className="role-badge view">Viewer</span>;
@@ -29,12 +32,15 @@ const yes = <span className="yes"><svg viewBox="0 0 24 24" fill="none" stroke="c
 const no = <span className="no"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path d="M18 6L6 18M6 6l12 12" /></svg></span>;
 
 export function UsersPage() {
+  const { notify } = useApp();
+  const exportAudit = () => { downloadCsv('audit-trail.csv', ['Time', 'User', 'Action'], AUDIT.map((a) => [a[0], a[1], a[2]])); notify('Audit trail exported'); };
   return (
     <section>
       <div className="vhead">
         <div><h2>Users, Roles &amp; Audit</h2><p>Access control · every view &amp; export is logged</p></div>
         <div className="toolbar">
-          <button className="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8M19 8v6M22 11h-6" /></svg>Invite user</button>
+          <button className="btn" onClick={exportAudit}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>Export audit</button>
+          <button className="btn primary" onClick={() => notify('Invitations need an auth backend')}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8M19 8v6M22 11h-6" /></svg>Invite user</button>
         </div>
       </div>
       <div className="col-2-a">
