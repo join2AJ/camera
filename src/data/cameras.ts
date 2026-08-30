@@ -13,6 +13,8 @@ export interface Camera {
   refreshMs?: number;
   /** Force fetching through the server-side proxy (host not reachable client-side). */
   proxied?: boolean;
+  /** CSS filter applied to the rendered frame (from saved image adjustments). */
+  imgFilter?: string;
 }
 
 /**

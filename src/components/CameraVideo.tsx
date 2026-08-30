@@ -31,9 +31,10 @@ function resolveUrl(url: string, force = false): string {
 export function CameraVideo({ camera, index, style, muted = true }: { camera: Camera; index: number; style?: CSSProperties; muted?: boolean }) {
   if (!camera.streamUrl) return <Scene index={index} style={style} />;
   const force = !!camera.proxied;
-  if (camera.streamType === 'mjpeg') return <ImageStream url={resolveUrl(camera.streamUrl, force)} style={style} />;
-  if (camera.streamType === 'snapshot') return <ImageStream url={resolveUrl(camera.streamUrl, force)} refreshMs={camera.refreshMs ?? 1000} style={style} />;
-  return <VideoStream camera={camera} style={style} muted={muted} />;
+  const s: CSSProperties = camera.imgFilter ? { ...style, filter: camera.imgFilter } : style ?? {};
+  if (camera.streamType === 'mjpeg') return <ImageStream url={resolveUrl(camera.streamUrl, force)} style={s} />;
+  if (camera.streamType === 'snapshot') return <ImageStream url={resolveUrl(camera.streamUrl, force)} refreshMs={camera.refreshMs ?? 1000} style={s} />;
+  return <VideoStream camera={camera} style={s} muted={muted} />;
 }
 
 /**

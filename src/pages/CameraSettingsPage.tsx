@@ -1,12 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { sceneStyle } from '../data/cameras';
 import { Seg, TimeStamp, Toggle } from '../components/common';
+import { CameraVideo } from '../components/CameraVideo';
 import { useApp } from '../context/AppContext';
+import { DEFAULT_IMG, imgFilterCss, type ImgAdjust } from '../lib/img';
 
 type CTab = 'image' | 'stream' | 'network' | 'rec';
-interface Img { brightness: number; contrast: number; saturate: number; sharp: number; focus: number; hue: number; }
-const DEFAULTS: Img = { brightness: 100, contrast: 100, saturate: 100, sharp: 50, focus: 100, hue: 0 };
+type Group = 'Perimeter' | 'Interior' | 'Restricted';
 
 const CTABS: { key: CTab; label: string; icon: ReactNode }[] = [
   { key: 'image', label: 'Image', icon: <><circle cx="12" cy="12" r="9" /><path d="M12 3a9 9 0 000 18M12 8v8M8 12h8" /></> },
@@ -15,7 +16,7 @@ const CTABS: { key: CTab; label: string; icon: ReactNode }[] = [
   { key: 'rec', label: 'Recording', icon: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="3.5" fill="currentColor" stroke="none" /></> },
 ];
 
-const SLIDERS: { key: keyof Img; label: string; min: number; max: number }[] = [
+const SLIDERS: { key: keyof ImgAdjust; label: string; min: number; max: number }[] = [
   { key: 'brightness', label: 'Brightness', min: 50, max: 150 },
   { key: 'contrast', label: 'Contrast', min: 50, max: 150 },
   { key: 'saturate', label: 'Saturation', min: 0, max: 200 },
@@ -24,38 +25,71 @@ const SLIDERS: { key: keyof Img; label: string; min: number; max: number }[] = [
   { key: 'hue', label: 'Hue', min: -30, max: 30 },
 ];
 
+const POLL: { label: string; ms: number }[] = [
+  { label: '1 fps', ms: 1000 }, { label: '2 fps', ms: 500 }, { label: '4 fps', ms: 250 },
+];
+
+function fieldDefaults(): Record<string, string> {
+  return {
+    res: '3840×2160 (4K)', fps: '25 fps', codec: 'H.265 (HEVC)', bitrate: '8192 kbps · VBR', gop: '50', audio: 'AAC · on',
+    subRes: '640×360', subFps: '15 fps', subCodec: 'H.264', subBitrate: '512 kbps · CBR',
+    ip: '10.20.4.11', subnet: '255.255.255.0', gateway: '10.20.4.1', dns: '10.20.0.2', mac: 'B4:2E:99:1C:0A:44', onvifPort: '80',
+    channel: 'CH-01', location: 'North Campus · Ground · West Door',
+  };
+}
+
+interface Work { name: string; group: Group; refreshMs: number; img: ImgAdjust; fields: Record<string, string> }
+
 export function CameraSettingsPage() {
-  const { cameras } = useApp();
+  const { cameras, overrides, saveOverride } = useApp();
   const [tab, setTab] = useState<CTab>('image');
   const [ci, setCi] = useState(0);
-  const [img, setImg] = useState<Img>(DEFAULTS);
-  const [name, setName] = useState(cameras[0]?.n ?? '');
+  const [saved, setSaved] = useState(false);
   const cam = cameras[ci] ?? cameras[0];
 
-  const filter = useMemo(() => {
-    const blur = ((100 - img.focus) / 100) * 3 + ((100 - img.sharp) / 100) * 0.6;
-    return `brightness(${img.brightness / 100}) contrast(${img.contrast / 100}) saturate(${img.saturate / 100}) hue-rotate(${img.hue}deg)${blur > 0.05 ? ` blur(${blur.toFixed(2)}px)` : ''}`;
-  }, [img]);
+  const seed = (id: string, camName: string, camRefresh?: number): Work => {
+    const o = overrides[id] ?? {};
+    return {
+      name: o.name ?? camName,
+      group: (o.group as Group) ?? 'Perimeter',
+      refreshMs: o.refreshMs ?? camRefresh ?? 1000,
+      img: o.img ?? DEFAULT_IMG,
+      fields: { ...fieldDefaults(), ...(o.fields ?? {}) },
+    };
+  };
 
-  const selectCam = (i: number) => { setCi(i); setName(cameras[i].n); setImg(DEFAULTS); };
-  const previewScene: CSSProperties = { ...sceneStyle(ci), filter, transition: 'filter .1s' };
+  const [work, setWork] = useState<Work>(() => seed(cam.id, cam.n, cam.refreshMs));
+
+  // Reseed when the selected camera changes.
+  useEffect(() => { setWork(seed(cam.id, cam.n, cam.refreshMs)); setSaved(false); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [ci]);
+
+  const previewStyle: CSSProperties = useMemo(() => ({ ...sceneStyle(ci), filter: imgFilterCss(work.img), transition: 'filter .1s' }), [ci, work.img]);
+  const setField = (k: string, v: string) => setWork((w) => ({ ...w, fields: { ...w.fields, [k]: v } }));
+  const setImg = (k: keyof ImgAdjust, v: number) => setWork((w) => ({ ...w, img: { ...w.img, [k]: v } }));
+
+  const save = () => { saveOverride(cam.id, { name: work.name, group: work.group, refreshMs: work.refreshMs, img: work.img, fields: work.fields }); setSaved(true); window.setTimeout(() => setSaved(false), 1800); };
+  const reset = () => setWork({ name: cam.n, group: 'Perimeter', refreshMs: 1000, img: DEFAULT_IMG, fields: fieldDefaults() });
+
+  const hasLive = !!cam.streamUrl;
 
   return (
     <section>
       <div className="vhead">
-        <div><h2>Camera Settings</h2><p>Image · stream · network · recording — per camera</p></div>
+        <div><h2>Camera Settings</h2><p>Image · stream · network · recording — changes save per camera</p></div>
         <div className="toolbar">
-          <button className="btn" onClick={() => setImg(DEFAULTS)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M21 12a9 9 0 11-3-6.7L21 8M21 3v5h-5" /></svg>Reset</button>
-          <button className="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M20 6L9 17l-5-5" /></svg>Save &amp; apply</button>
+          <button className="btn" onClick={reset}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M21 12a9 9 0 11-3-6.7L21 8M21 3v5h-5" /></svg>Reset</button>
+          <button className="btn primary" onClick={save}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M20 6L9 17l-5-5" /></svg>{saved ? 'Saved ✓' : 'Save & apply'}</button>
         </div>
       </div>
       <div className="cfg-wrap">
         <div>
           <div className="cfg-preview">
-            <div className="scene" style={previewScene} />
+            {hasLive
+              ? <CameraVideo camera={{ ...cam, imgFilter: imgFilterCss(work.img) }} index={ci} />
+              : <div className="scene" style={previewStyle} />}
             <div className="scanline" />
-            <div className="cam-top"><div className="cam-name">{name} <span className="id">{cam.id} · Live preview</span></div><span className="chip online"><span className="d" />Preview</span></div>
-            <div className="cam-bot"><TimeStamp /><span className="ts" style={{ color: 'var(--faint)' }}>B{img.brightness} · C{img.contrast} · S{img.saturate}</span></div>
+            <div className="cam-top"><div className="cam-name">{work.name} <span className="id">{cam.id} · Live preview</span></div><span className="chip online"><span className="d" />Preview</span></div>
+            <div className="cam-bot"><TimeStamp /><span className="ts" style={{ color: 'var(--faint)' }}>B{work.img.brightness} · C{work.img.contrast} · S{work.img.saturate}</span></div>
           </div>
 
           <div className="subtabs" style={{ marginTop: 14, marginBottom: 14 }}>
@@ -68,12 +102,12 @@ export function CameraSettingsPage() {
 
           {tab === 'image' && (
             <div className="card" style={{ padding: 14 }}>
-              <div className="row" style={{ justifyContent: 'space-between', marginBottom: 12 }}><h4 className="eyebrow">Image · {cam.id}</h4><span className="mono" style={{ fontSize: 11, color: 'var(--faint)' }}>applies to preview</span></div>
+              <div className="row" style={{ justifyContent: 'space-between', marginBottom: 12 }}><h4 className="eyebrow">Image · {cam.id}</h4><span className="mono" style={{ fontSize: 11, color: 'var(--faint)' }}>applies to the live feed</span></div>
               {SLIDERS.map((s) => (
                 <div key={s.key} className="ctrl">
                   <span className="cl">{s.label}</span>
-                  <input type="range" className="slider" min={s.min} max={s.max} value={img[s.key]} onChange={(e) => setImg((v) => ({ ...v, [s.key]: +e.target.value }))} />
-                  <span className="cv">{img[s.key]}</span>
+                  <input type="range" className="slider" min={s.min} max={s.max} value={work.img[s.key]} onChange={(e) => setImg(s.key, +e.target.value)} />
+                  <span className="cv">{work.img[s.key]}</span>
                 </div>
               ))}
               <div className="row" style={{ gap: 20, marginTop: 6, flexWrap: 'wrap' }}>
@@ -86,17 +120,24 @@ export function CameraSettingsPage() {
 
           {tab === 'stream' && (
             <>
+              {hasLive && (
+                <div className="card" style={{ padding: 16, marginBottom: 12 }}>
+                  <h4 className="eyebrow" style={{ marginBottom: 12 }}>Live poll rate <span style={{ color: 'var(--faint)', textTransform: 'none', letterSpacing: 0 }}>· snapshot refresh</span></h4>
+                  <div className="seg-sm">
+                    {POLL.map((p) => <button key={p.ms} className={work.refreshMs === p.ms ? 'on' : ''} onClick={() => setWork((w) => ({ ...w, refreshMs: p.ms }))}>{p.label}</button>)}
+                  </div>
+                </div>
+              )}
               <div className="card" style={{ padding: 16 }}>
                 <h4 className="eyebrow" style={{ marginBottom: 14 }}>Main stream · recording &amp; full-screen</h4>
-                <div className="field row2"><div><label>Resolution</label><input type="text" defaultValue="3840×2160 (4K)" /></div><div><label>Frame rate</label><input type="text" defaultValue="25 fps" /></div></div>
-                <div className="field row2"><div><label>Codec</label><input type="text" defaultValue="H.265 (HEVC)" /></div><div><label>Bitrate</label><input type="text" defaultValue="8192 kbps · VBR" /></div></div>
-                <div className="ctrl"><span className="cl">Quality</span><input type="range" className="slider" min={1} max={6} defaultValue={5} /><span className="cv">High</span></div>
-                <div className="field row2" style={{ marginTop: 12 }}><div><label>GOP / I-frame</label><input type="text" defaultValue="50" /></div><div><label>Audio</label><input type="text" defaultValue="AAC · on" /></div></div>
+                <div className="field row2"><div><label>Resolution</label><input type="text" value={work.fields.res} onChange={(e) => setField('res', e.target.value)} /></div><div><label>Frame rate</label><input type="text" value={work.fields.fps} onChange={(e) => setField('fps', e.target.value)} /></div></div>
+                <div className="field row2"><div><label>Codec</label><input type="text" value={work.fields.codec} onChange={(e) => setField('codec', e.target.value)} /></div><div><label>Bitrate</label><input type="text" value={work.fields.bitrate} onChange={(e) => setField('bitrate', e.target.value)} /></div></div>
+                <div className="field row2"><div><label>GOP / I-frame</label><input type="text" value={work.fields.gop} onChange={(e) => setField('gop', e.target.value)} /></div><div><label>Audio</label><input type="text" value={work.fields.audio} onChange={(e) => setField('audio', e.target.value)} /></div></div>
               </div>
               <div className="card" style={{ padding: 16, marginTop: 12 }}>
                 <h4 className="eyebrow" style={{ marginBottom: 14 }}>Sub stream · mobile &amp; multi-view</h4>
-                <div className="field row2"><div><label>Resolution</label><input type="text" defaultValue="640×360" /></div><div><label>Frame rate</label><input type="text" defaultValue="15 fps" /></div></div>
-                <div className="field row2"><div><label>Codec</label><input type="text" defaultValue="H.264" /></div><div><label>Bitrate</label><input type="text" defaultValue="512 kbps · CBR" /></div></div>
+                <div className="field row2"><div><label>Resolution</label><input type="text" value={work.fields.subRes} onChange={(e) => setField('subRes', e.target.value)} /></div><div><label>Frame rate</label><input type="text" value={work.fields.subFps} onChange={(e) => setField('subFps', e.target.value)} /></div></div>
+                <div className="field row2"><div><label>Codec</label><input type="text" value={work.fields.subCodec} onChange={(e) => setField('subCodec', e.target.value)} /></div><div><label>Bitrate</label><input type="text" value={work.fields.subBitrate} onChange={(e) => setField('subBitrate', e.target.value)} /></div></div>
                 <div className="setting"><div className="st"><div className="t">Smart codec (H.265+)</div><div className="d">Lower bitrate on static scenes</div></div><Toggle on /></div>
               </div>
             </>
@@ -107,13 +148,13 @@ export function CameraSettingsPage() {
               <div className="card" style={{ padding: 16 }}>
                 <div className="row" style={{ justifyContent: 'space-between', marginBottom: 14 }}><h4 className="eyebrow">Connection</h4><span className="chip online"><span className="d" />Reachable · 2ms</span></div>
                 <div className="field"><label>Addressing</label><Seg options={['Static IP', 'DHCP']} /></div>
-                <div className="field row2"><div><label>IP address</label><input type="text" defaultValue="10.20.4.11" /></div><div><label>Subnet mask</label><input type="text" defaultValue="255.255.255.0" /></div></div>
-                <div className="field row2"><div><label>Gateway</label><input type="text" defaultValue="10.20.4.1" /></div><div><label>DNS</label><input type="text" defaultValue="10.20.0.2" /></div></div>
-                <div className="field row2"><div><label>MAC</label><input type="text" defaultValue="B4:2E:99:1C:0A:44" /></div><div><label>ONVIF port</label><input type="text" defaultValue="80" /></div></div>
+                <div className="field row2"><div><label>IP address</label><input type="text" value={work.fields.ip} onChange={(e) => setField('ip', e.target.value)} /></div><div><label>Subnet mask</label><input type="text" value={work.fields.subnet} onChange={(e) => setField('subnet', e.target.value)} /></div></div>
+                <div className="field row2"><div><label>Gateway</label><input type="text" value={work.fields.gateway} onChange={(e) => setField('gateway', e.target.value)} /></div><div><label>DNS</label><input type="text" value={work.fields.dns} onChange={(e) => setField('dns', e.target.value)} /></div></div>
+                <div className="field row2"><div><label>MAC</label><input type="text" value={work.fields.mac} onChange={(e) => setField('mac', e.target.value)} /></div><div><label>ONVIF port</label><input type="text" value={work.fields.onvifPort} onChange={(e) => setField('onvifPort', e.target.value)} /></div></div>
               </div>
               <div className="card" style={{ padding: 16, marginTop: 12 }}>
                 <h4 className="eyebrow" style={{ marginBottom: 14 }}>Protocols &amp; ports</h4>
-                <div className="kv"><span className="k">RTSP</span><span className="v">rtsp://10.20.4.11:554/main</span></div>
+                <div className="kv"><span className="k">RTSP</span><span className="v">rtsp://{work.fields.ip}:554/main</span></div>
                 <div className="kv"><span className="k">HTTP / HTTPS</span><span className="v">80 / 443</span></div>
                 <div className="kv"><span className="k">ONVIF profile</span><span className="v">S · G · T</span></div>
                 <div className="setting"><div className="st"><div className="t">ONVIF discovery</div><div className="d">Auto-detect on the LAN</div></div><Toggle on /></div>
@@ -129,10 +170,6 @@ export function CameraSettingsPage() {
                 <div className="setting"><div className="st"><div className="t">DDNS</div><div className="d">northcampus.aperture-cam.net</div></div><Toggle on /></div>
                 <div className="setting"><div className="st"><div className="t">WebRTC low-latency</div><div className="d">STUN/TURN relay for live view</div></div><Toggle on /></div>
                 <div className="setting"><div className="st"><div className="t">Site-to-site VPN</div><div className="d">WireGuard · always-on tunnel</div></div><Toggle /></div>
-                <div className="row" style={{ justifyContent: 'space-between', marginTop: 12, padding: 11, background: 'var(--surface)', borderRadius: 8, border: '1px solid var(--border-soft)' }}>
-                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>Pair mobile app</span>
-                  <span style={{ width: 44, height: 44, borderRadius: 6, background: '#fff', display: 'grid', placeItems: 'center' }}><svg viewBox="0 0 24 24" width={34} height={34} fill="#0a0e13"><path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm13-2h3v2h-3zm0 3h2v3h-3v-2h1zm3 0h-1v2h1v-2zm0 3h-3v2h3v-2z" /></svg></span>
-                </div>
               </div>
             </>
           )}
@@ -150,7 +187,6 @@ export function CameraSettingsPage() {
                 <h4 className="eyebrow" style={{ marginBottom: 14 }}>Motion &amp; detection</h4>
                 <div className="ctrl"><span className="cl">Sensitivity</span><input type="range" className="slider" min={0} max={100} defaultValue={65} /><span className="cv">65</span></div>
                 <div className="setting"><div className="st"><div className="t">Human/vehicle filter</div><div className="d">Ignore leaves, rain, small animals</div></div><Toggle on /></div>
-                <div className="setting"><div className="st"><div className="t">Detection zones</div><div className="d">3 areas masked</div></div><button className="btn" style={{ padding: '5px 10px' }}>Edit zones</button></div>
                 <div className="setting"><div className="st"><div className="t">Audio detection</div><div className="d">Glass-break, raised voices</div></div><Toggle /></div>
               </div>
             </>
@@ -160,9 +196,9 @@ export function CameraSettingsPage() {
         <aside>
           <div className="card" style={{ padding: 16, marginBottom: 14 }}>
             <h4 className="eyebrow" style={{ marginBottom: 14 }}>Select camera</h4>
-            <div className="camlist" style={{ maxHeight: 200, overflow: 'auto' }}>
+            <div className="camlist" style={{ maxHeight: 220, overflow: 'auto' }}>
               {cameras.map((c, i) => (
-                <div key={c.id} className={`camlist-item${i === ci ? ' sel' : ''}`} onClick={() => selectCam(i)}>
+                <div key={c.id} className={`camlist-item${i === ci ? ' sel' : ''}`} onClick={() => setCi(i)}>
                   <div className="thumb"><div className="scene" style={sceneStyle(i)} /></div>
                   <div className="nm">{c.n}<span>{c.id}</span></div>
                 </div>
@@ -171,11 +207,17 @@ export function CameraSettingsPage() {
           </div>
           <div className="card" style={{ padding: 16 }}>
             <h4 className="eyebrow" style={{ marginBottom: 14 }}>Nomenclature</h4>
-            <div className="field"><label>Display name</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} /></div>
-            <div className="field row2"><div><label>Camera number</label><input type="text" value={cam.id} readOnly /></div><div><label>Channel</label><input type="text" defaultValue="CH-01" /></div></div>
-            <div className="field"><label>Group / Zone</label><Seg options={['Perimeter', 'Interior', 'Restricted']} /></div>
-            <div className="field"><label>Location label</label><input type="text" defaultValue="North Campus · Ground · West Door" /></div>
-            <p style={{ fontSize: 11.5, color: 'var(--faint)', margin: '2px 0 0', fontFamily: 'var(--mono)' }}>Naming template: {'{Zone}-{Number} · {Location}'}</p>
+            <div className="field"><label>Display name</label><input type="text" value={work.name} onChange={(e) => setWork((w) => ({ ...w, name: e.target.value }))} /></div>
+            <div className="field row2"><div><label>Camera number</label><input type="text" value={cam.id} readOnly /></div><div><label>Channel</label><input type="text" value={work.fields.channel} onChange={(e) => setField('channel', e.target.value)} /></div></div>
+            <div className="field"><label>Group / Zone</label>
+              <div className="seg-sm">
+                {(['Perimeter', 'Interior', 'Restricted'] as Group[]).map((g) => (
+                  <button key={g} className={work.group === g ? 'on' : ''} onClick={() => setWork((w) => ({ ...w, group: g }))}>{g}</button>
+                ))}
+              </div>
+            </div>
+            <div className="field"><label>Location label</label><input type="text" value={work.fields.location} onChange={(e) => setField('location', e.target.value)} /></div>
+            <p style={{ fontSize: 11.5, color: 'var(--faint)', margin: '2px 0 0', fontFamily: 'var(--mono)' }}>Changes are saved to this browser and applied to the live wall.</p>
           </div>
         </aside>
       </div>

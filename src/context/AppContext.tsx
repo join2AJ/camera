@@ -3,8 +3,18 @@ import type { ReactNode } from 'react';
 import { SEED_ALARMS, type Alarm, type Severity } from '../data/alarms';
 import { CAMERAS, type Camera } from '../data/cameras';
 import { api, type NewCameraInput } from '../api/client';
+import { imgFilterCss, type ImgAdjust } from '../lib/img';
 
 type Theme = 'dark' | 'light';
+
+/** Per-camera settings the user edits and we persist to localStorage. */
+export interface CamOverride {
+  name?: string;
+  group?: string;
+  refreshMs?: number;
+  img?: ImgAdjust;
+  fields?: Record<string, string>;
+}
 
 interface AppState {
   theme: Theme;
@@ -16,6 +26,8 @@ interface AppState {
 
   cameras: Camera[];
   addCamera: (input: NewCameraInput) => Promise<Camera>;
+  overrides: Record<string, CamOverride>;
+  saveOverride: (id: string, o: CamOverride) => void;
 
   alarms: Alarm[];
   openAlarmCount: number;
@@ -45,10 +57,21 @@ function readTheme(): Theme {
   return 'dark';
 }
 
+function readOverrides(): Record<string, CamOverride> {
+  try {
+    const raw = localStorage.getItem('aperture-cam-overrides');
+    if (raw) return JSON.parse(raw) as Record<string, CamOverride>;
+  } catch {
+    /* storage unavailable / bad json */
+  }
+  return {};
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(readTheme);
   const [site, setSite] = useState(0);
-  const [cameras, setCameras] = useState<Camera[]>(CAMERAS);
+  const [rawCameras, setCameras] = useState<Camera[]>(CAMERAS);
+  const [overrides, setOverrides] = useState<Record<string, CamOverride>>(readOverrides);
   const [alarms, setAlarms] = useState<Alarm[]>(SEED_ALARMS);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [alarmFilter, setAlarmFilter] = useState<Severity | 'all'>('all');
@@ -68,6 +91,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const ackAlarm = useCallback((id: number) => {
     setAlarms((prev) => prev.map((a) => (a.id === id ? { ...a, ack: true } : a)));
   }, []);
+
+  const saveOverride = useCallback((id: string, o: CamOverride) => {
+    setOverrides((prev) => {
+      const next = { ...prev, [id]: o };
+      try { localStorage.setItem('aperture-cam-overrides', JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
+
+  // Cameras with the user's saved overrides applied (name, poll rate, image filter).
+  const cameras = useMemo<Camera[]>(() => rawCameras.map((c) => {
+    const o = overrides[c.id];
+    if (!o) return c;
+    return {
+      ...c,
+      n: o.name || c.n,
+      refreshMs: o.refreshMs ?? c.refreshMs,
+      imgFilter: o.img ? imgFilterCss(o.img) : c.imgFilter,
+    };
+  }), [rawCameras, overrides]);
 
   const addCamera = useCallback(async (input: NewCameraInput): Promise<Camera> => {
     const cam = await api.cameras.add(input);
@@ -110,7 +153,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const value: AppState = {
     theme, toggleTheme, setTheme,
     site, setSite,
-    cameras, addCamera,
+    cameras, addCamera, overrides, saveOverride,
     alarms, openAlarmCount, ackAlarm,
     drawerOpen, setDrawerOpen,
     alarmFilter, setAlarmFilter,
